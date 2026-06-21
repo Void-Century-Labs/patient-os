@@ -1,0 +1,12 @@
+# env
+.env
+.env.local
+
+# go
+backend/tmp/
+
+# node
+node_modules/
+
+# misc
+.DS_Store

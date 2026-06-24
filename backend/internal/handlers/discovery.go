@@ -12,10 +12,6 @@ type DiscoveryHandler struct {
 	DB *gorm.DB
 }
 
-// averageConsultMinutes is a fixed placeholder used to estimate wait time
-// until real consultation duration data exists (Queue Engine, week 3).
-const averageConsultMinutes = 10
-
 type doctorAvailability struct {
 	models.Doctor
 	QueueLength      int64 `json:"queue_length"`

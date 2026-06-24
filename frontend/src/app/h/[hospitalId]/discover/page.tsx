@@ -1,20 +1,46 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
-import { useParams } from "next/navigation";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { useParams, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { getDiscovery } from "@/lib/api";
+import { getDiscovery, joinQueue } from "@/lib/api";
+import { loadPatient } from "@/lib/patient-session";
 
 export default function DiscoverPage() {
   const params = useParams<{ hospitalId: string }>();
+  const router = useRouter();
+  const [joiningDoctorId, setJoiningDoctorId] = useState<number | null>(null);
+
+  const patient = loadPatient();
+
+  useEffect(() => {
+    if (!patient) {
+      router.replace(`/h/${params.hospitalId}/register`);
+    }
+  }, [patient, params.hospitalId, router]);
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["discovery", params.hospitalId],
     queryFn: () => getDiscovery(params.hospitalId),
+    enabled: !!patient,
   });
+
+  const joinMutation = useMutation({
+    mutationFn: (doctorId: number) => {
+      setJoiningDoctorId(doctorId);
+      return joinQueue(doctorId, patient!.id);
+    },
+    onSuccess: (entry) => {
+      router.push(`/h/${params.hospitalId}/queue/${entry.id}`);
+    },
+    onSettled: () => setJoiningDoctorId(null),
+  });
+
+  if (!patient) return null;
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-6 py-16">
@@ -27,6 +53,9 @@ export default function DiscoverPage() {
 
       {isLoading && <p className="text-muted-foreground text-sm">Loading departments…</p>}
       {isError && <p className="text-sm text-destructive">{error.message}</p>}
+      {joinMutation.isError && (
+        <p className="text-sm text-destructive">{joinMutation.error.message}</p>
+      )}
 
       {data?.length === 0 && (
         <p className="text-muted-foreground text-sm">No departments available yet.</p>
@@ -54,8 +83,14 @@ export default function DiscoverPage() {
                       <Badge variant="outline">~{doctor.estimated_wait_minutes} min wait</Badge>
                     </div>
                   </div>
-                  <Button size="sm" disabled>
-                    Join Queue
+                  <Button
+                    size="sm"
+                    disabled={joinMutation.isPending}
+                    onClick={() => joinMutation.mutate(doctor.id)}
+                  >
+                    {joinMutation.isPending && joiningDoctorId === doctor.id
+                      ? "Joining…"
+                      : "Join Queue"}
                   </Button>
                 </div>
               ))}

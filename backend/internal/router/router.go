@@ -17,6 +17,7 @@ func New(db *gorm.DB) *gin.Engine {
 	doctors := &handlers.DoctorHandler{DB: db}
 	patients := &handlers.PatientHandler{DB: db}
 	discovery := &handlers.DiscoveryHandler{DB: db}
+	queue := &handlers.QueueHandler{DB: db}
 
 	api := r.Group("/api/v1")
 	{
@@ -34,10 +35,14 @@ func New(db *gorm.DB) *gin.Engine {
 
 		api.GET("/doctors/:id", doctors.Get)
 		api.PATCH("/doctors/:id/assign", doctors.Assign)
+		api.POST("/doctors/:id/queue/join", queue.Join)
 
 		api.POST("/patients/register", patients.Register)
 		api.GET("/patients/:id", patients.Get)
 		api.GET("/patients", patients.GetByMobile)
+
+		api.GET("/queue-entries/:id", queue.Status)
+		api.POST("/queue-entries/:id/leave", queue.Leave)
 	}
 
 	return r

@@ -31,6 +31,18 @@ export type DepartmentAvailability = {
   doctors: DoctorAvailability[];
 };
 
+export type QueueEntryStatus = "waiting" | "called" | "completed" | "skipped" | "cancelled";
+
+export type QueueEntry = {
+  id: number;
+  queue_id: number;
+  patient_id: number;
+  token_number: number;
+  status: QueueEntryStatus;
+  position: number;
+  estimated_wait_minutes: number;
+};
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
     ...init,
@@ -65,5 +77,22 @@ export function registerPatient(input: {
   return request<Patient>("/api/v1/patients/register", {
     method: "POST",
     body: JSON.stringify(input),
+  });
+}
+
+export function joinQueue(doctorId: number, patientId: number) {
+  return request<QueueEntry>(`/api/v1/doctors/${doctorId}/queue/join`, {
+    method: "POST",
+    body: JSON.stringify({ patient_id: patientId }),
+  });
+}
+
+export function getQueueEntry(entryId: number) {
+  return request<QueueEntry>(`/api/v1/queue-entries/${entryId}`);
+}
+
+export function leaveQueue(entryId: number) {
+  return request<QueueEntry>(`/api/v1/queue-entries/${entryId}/leave`, {
+    method: "POST",
   });
 }

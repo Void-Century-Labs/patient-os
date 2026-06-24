@@ -64,6 +64,10 @@ export function getHospital(hospitalId: string) {
   return request<Hospital>(`/api/v1/hospitals/${hospitalId}`);
 }
 
+export function getHospitals() {
+  return request<Hospital[]>("/api/v1/hospitals");
+}
+
 export function getDiscovery(hospitalId: string) {
   return request<DepartmentAvailability[]>(`/api/v1/hospitals/${hospitalId}/discovery`);
 }

@@ -1,50 +1,43 @@
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import Link from "next/link";
 
-export default function Home() {
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { getHospitals } from "@/lib/api";
+
+export default async function Home() {
+  const hospitals = await getHospitals().catch(() => []);
+
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-8 px-6 py-16">
+    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-8 px-6 py-16">
       <div className="space-y-2">
         <h1 className="text-3xl font-semibold tracking-tight">PatientOS</h1>
         <p className="text-muted-foreground">
-          Hospital queue and patient navigation platform — design system preview.
+          Hospital queue and patient navigation platform.
         </p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Join a Queue</CardTitle>
-          <CardDescription>
-            Sample form rendered with the shared design system components.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="name">Full name</Label>
-            <Input id="name" placeholder="Jane Doe" />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="mobile">Mobile number</Label>
-            <Input id="mobile" placeholder="+1 555 0100" />
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge>Cardiology</Badge>
-            <Badge variant="secondary">Queue: 4</Badge>
-            <Badge variant="success">Ready</Badge>
-            <Badge variant="warning">Approaching</Badge>
-          </div>
-          <Button>Join Queue</Button>
-        </CardContent>
-      </Card>
+      {hospitals.length === 0 ? (
+        <p className="text-muted-foreground text-sm">
+          No hospitals found. Make sure the backend API is running and reachable.
+        </p>
+      ) : (
+        <div className="space-y-4">
+          <p className="text-muted-foreground text-sm">
+            Select a hospital to register and join a queue. In production, patients
+            reach this page directly via a hospital-specific QR code.
+          </p>
+          {hospitals.map((hospital) => (
+            <Link key={hospital.id} href={`/h/${hospital.id}`}>
+              <Card className="transition-colors hover:bg-accent">
+                <CardHeader>
+                  <CardTitle>{hospital.name}</CardTitle>
+                  <CardDescription>Tap to get started</CardDescription>
+                </CardHeader>
+                <CardContent />
+              </Card>
+            </Link>
+          ))}
+        </div>
+      )}
     </main>
   );
 }

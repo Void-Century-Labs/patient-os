@@ -1,15 +1,18 @@
 package handlers
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/void-century-labs/patient-os/backend/internal/models"
+	"github.com/void-century-labs/patient-os/backend/internal/ws"
 	"gorm.io/gorm"
 )
 
 type QueueHandler struct {
-	DB *gorm.DB
+	DB  *gorm.DB
+	Hub *ws.Hub
 }
 
 // averageConsultMinutes is a fixed placeholder used to estimate wait time
@@ -101,6 +104,7 @@ func (h *QueueHandler) Join(c *gin.Context) {
 		return
 	}
 
+	h.broadcastQueue(entry.QueueID)
 	c.JSON(http.StatusCreated, view)
 }
 
@@ -124,6 +128,80 @@ func (h *QueueHandler) Leave(c *gin.Context) {
 		return
 	}
 
+	h.broadcastQueue(entry.QueueID)
+	c.JSON(http.StatusOK, entry)
+}
+
+// CallNext marks the earliest waiting entry in a doctor's queue as called,
+// for use by the queue operator dashboard.
+func (h *QueueHandler) CallNext(c *gin.Context) {
+	var queue models.Queue
+	if err := h.DB.Where("doctor_id = ?", c.Param("id")).First(&queue).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "queue not found"})
+		return
+	}
+
+	var entry models.QueueEntry
+	if err := h.DB.Where("queue_id = ? AND status = ?", queue.ID, models.QueueEntryStatusWaiting).
+		Order("token_number").First(&entry).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "no waiting patients"})
+		return
+	}
+
+	entry.Status = models.QueueEntryStatusCalled
+	if err := h.DB.Save(&entry).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to call next patient"})
+		return
+	}
+
+	h.broadcastQueue(entry.QueueID)
+	c.JSON(http.StatusOK, entry)
+}
+
+// Complete marks a called entry as completed, freeing the doctor for the
+// next patient.
+func (h *QueueHandler) Complete(c *gin.Context) {
+	var entry models.QueueEntry
+	if err := h.DB.First(&entry, c.Param("id")).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "queue entry not found"})
+		return
+	}
+
+	if entry.Status != models.QueueEntryStatusCalled {
+		c.JSON(http.StatusConflict, gin.H{"error": "entry is not called"})
+		return
+	}
+
+	entry.Status = models.QueueEntryStatusCompleted
+	if err := h.DB.Save(&entry).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to complete entry"})
+		return
+	}
+
+	h.broadcastQueue(entry.QueueID)
+	c.JSON(http.StatusOK, entry)
+}
+
+// Skip marks a waiting or called entry as skipped.
+func (h *QueueHandler) Skip(c *gin.Context) {
+	var entry models.QueueEntry
+	if err := h.DB.First(&entry, c.Param("id")).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "queue entry not found"})
+		return
+	}
+
+	if entry.Status != models.QueueEntryStatusWaiting && entry.Status != models.QueueEntryStatusCalled {
+		c.JSON(http.StatusConflict, gin.H{"error": "entry cannot be skipped"})
+		return
+	}
+
+	entry.Status = models.QueueEntryStatusSkipped
+	if err := h.DB.Save(&entry).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to skip entry"})
+		return
+	}
+
+	h.broadcastQueue(entry.QueueID)
 	c.JSON(http.StatusOK, entry)
 }
 
@@ -163,4 +241,39 @@ func (h *QueueHandler) toView(entry models.QueueEntry) (queueEntryView, error) {
 		Position:         position,
 		EstimatedWaitMin: (position - 1) * averageConsultMinutes,
 	}, nil
+}
+
+type queueUpdateMessage struct {
+	Type    string           `json:"type"`
+	QueueID uint             `json:"queue_id"`
+	Entries []queueEntryView `json:"entries"`
+}
+
+// broadcastQueue recalculates positions for all waiting entries in a queue
+// and pushes the snapshot to every subscribed WebSocket client.
+func (h *QueueHandler) broadcastQueue(queueID uint) {
+	if h.Hub == nil {
+		return
+	}
+
+	var entries []models.QueueEntry
+	if err := h.DB.Where("queue_id = ? AND status = ?", queueID, models.QueueEntryStatusWaiting).
+		Order("token_number").Find(&entries).Error; err != nil {
+		return
+	}
+
+	views := make([]queueEntryView, 0, len(entries))
+	for i, entry := range entries {
+		views = append(views, queueEntryView{
+			QueueEntry:       entry,
+			Position:         int64(i + 1),
+			EstimatedWaitMin: int64(i) * averageConsultMinutes,
+		})
+	}
+
+	payload, err := json.Marshal(queueUpdateMessage{Type: "queue_update", QueueID: queueID, Entries: views})
+	if err != nil {
+		return
+	}
+	h.Hub.Broadcast(queueID, payload)
 }

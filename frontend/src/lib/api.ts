@@ -1,4 +1,5 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? "ws://localhost:8080";
 
 export type Hospital = {
   id: number;
@@ -99,4 +100,14 @@ export function leaveQueue(entryId: number) {
   return request<QueueEntry>(`/api/v1/queue-entries/${entryId}/leave`, {
     method: "POST",
   });
+}
+
+export type QueueUpdateMessage = {
+  type: "queue_update";
+  queue_id: number;
+  entries: QueueEntry[];
+};
+
+export function getQueueWsUrl(queueId: number) {
+  return `${WS_URL}/api/v1/queues/${queueId}/ws`;
 }

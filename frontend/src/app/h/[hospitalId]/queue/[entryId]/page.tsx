@@ -2,11 +2,12 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { getQueueEntry, leaveQueue } from "@/lib/api";
+import { getQueueEntry, getQueueWsUrl, leaveQueue, type QueueUpdateMessage } from "@/lib/api";
 
 const STATUS_LABEL: Record<string, string> = {
   waiting: "Waiting",
@@ -21,13 +22,42 @@ export default function QueueTrackingPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const entryId = Number(params.entryId);
+  const [wsConnected, setWsConnected] = useState(false);
+  const wsRef = useRef<WebSocket | null>(null);
 
   const { data: entry, isLoading, isError, error } = useQuery({
     queryKey: ["queue-entry", entryId],
     queryFn: () => getQueueEntry(entryId),
     refetchInterval: (query) =>
-      query.state.data?.status === "waiting" ? 5000 : false,
+      !wsConnected && query.state.data?.status === "waiting" ? 5000 : false,
   });
+
+  const queueId = entry?.queue_id;
+
+  useEffect(() => {
+    if (!queueId) return;
+
+    const socket = new WebSocket(getQueueWsUrl(queueId));
+    wsRef.current = socket;
+
+    socket.onopen = () => setWsConnected(true);
+    socket.onclose = () => setWsConnected(false);
+    socket.onerror = () => setWsConnected(false);
+    socket.onmessage = (event) => {
+      const message: QueueUpdateMessage = JSON.parse(event.data);
+      const updated = message.entries.find((item) => item.id === entryId);
+      if (updated) {
+        queryClient.setQueryData(["queue-entry", entryId], updated);
+      } else {
+        queryClient.invalidateQueries({ queryKey: ["queue-entry", entryId] });
+      }
+    };
+
+    return () => {
+      socket.close();
+      wsRef.current = null;
+    };
+  }, [queueId, entryId, queryClient]);
 
   const leaveMutation = useMutation({
     mutationFn: () => leaveQueue(entryId),

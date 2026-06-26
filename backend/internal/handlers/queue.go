@@ -205,6 +205,72 @@ func (h *QueueHandler) Skip(c *gin.Context) {
 	c.JSON(http.StatusOK, entry)
 }
 
+type activeQueueEntry struct {
+	models.QueueEntry
+	PatientName string `json:"patient_name"`
+	Position    int64  `json:"position"`
+}
+
+// ActiveQueue lists a doctor's currently called and waiting entries (with
+// patient names and queue position) for the operator dashboard.
+func (h *QueueHandler) ActiveQueue(c *gin.Context) {
+	var doctor models.Doctor
+	if err := h.DB.First(&doctor, c.Param("id")).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "doctor not found"})
+		return
+	}
+
+	var queue models.Queue
+	if err := h.DB.Where("doctor_id = ?", doctor.ID).First(&queue).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusOK, gin.H{"queue_id": nil, "entries": []activeQueueEntry{}})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch queue"})
+		return
+	}
+
+	var entries []models.QueueEntry
+	if err := h.DB.Where(
+		"queue_id = ? AND status IN ?",
+		queue.ID, []models.QueueStatus{models.QueueEntryStatusWaiting, models.QueueEntryStatusCalled},
+	).Order("status, token_number").Find(&entries).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch queue entries"})
+		return
+	}
+
+	patientIDs := make([]uint, 0, len(entries))
+	for _, entry := range entries {
+		patientIDs = append(patientIDs, entry.PatientID)
+	}
+	var patients []models.Patient
+	if len(patientIDs) > 0 {
+		if err := h.DB.Where("id IN ?", patientIDs).Find(&patients).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch patients"})
+			return
+		}
+	}
+	nameByID := make(map[uint]string, len(patients))
+	for _, patient := range patients {
+		nameByID[patient.ID] = patient.Name
+	}
+
+	result := make([]activeQueueEntry, 0, len(entries))
+	var position int64
+	for _, entry := range entries {
+		if entry.Status == models.QueueEntryStatusWaiting {
+			position++
+		}
+		result = append(result, activeQueueEntry{
+			QueueEntry:  entry,
+			PatientName: nameByID[entry.PatientID],
+			Position:    position,
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"queue_id": queue.ID, "entries": result})
+}
+
 // Status returns the entry's current position among waiting entries and
 // an estimated wait time, for the patient-facing tracking screen.
 func (h *QueueHandler) Status(c *gin.Context) {

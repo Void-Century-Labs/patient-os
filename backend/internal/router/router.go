@@ -40,6 +40,7 @@ func New(db *gorm.DB) *gin.Engine {
 		api.GET("/doctors/:id", doctors.Get)
 		api.PATCH("/doctors/:id/assign", doctors.Assign)
 		api.POST("/doctors/:id/queue/join", queue.Join)
+		api.GET("/doctors/:id/queue", queue.ActiveQueue)
 		api.POST("/doctors/:id/queue/call-next", queue.CallNext)
 
 		api.POST("/patients/register", patients.Register)

@@ -20,6 +20,16 @@ export type Doctor = {
   name: string;
 };
 
+export type Department = {
+  id: number;
+  hospital_id: number;
+  name: string;
+};
+
+export type ActiveQueueEntry = QueueEntry & {
+  patient_name: string;
+};
+
 export type DoctorAvailability = Doctor & {
   queue_length: number;
   estimated_wait_minutes: number;
@@ -110,4 +120,50 @@ export type QueueUpdateMessage = {
 
 export function getQueueWsUrl(queueId: number) {
   return `${WS_URL}/api/v1/queues/${queueId}/ws`;
+}
+
+export function getActiveQueue(doctorId: number) {
+  return request<{ queue_id: number | null; entries: ActiveQueueEntry[] }>(
+    `/api/v1/doctors/${doctorId}/queue`,
+  );
+}
+
+export function callNext(doctorId: number) {
+  return request<QueueEntry>(`/api/v1/doctors/${doctorId}/queue/call-next`, {
+    method: "POST",
+  });
+}
+
+export function completeEntry(entryId: number) {
+  return request<QueueEntry>(`/api/v1/queue-entries/${entryId}/complete`, {
+    method: "POST",
+  });
+}
+
+export function skipEntry(entryId: number) {
+  return request<QueueEntry>(`/api/v1/queue-entries/${entryId}/skip`, {
+    method: "POST",
+  });
+}
+
+export function getDepartments(hospitalId: string) {
+  return request<Department[]>(`/api/v1/hospitals/${hospitalId}/departments`);
+}
+
+export function createDepartment(hospitalId: string, name: string) {
+  return request<Department>(`/api/v1/hospitals/${hospitalId}/departments`, {
+    method: "POST",
+    body: JSON.stringify({ name }),
+  });
+}
+
+export function getDoctors(departmentId: number) {
+  return request<Doctor[]>(`/api/v1/departments/${departmentId}/doctors`);
+}
+
+export function createDoctor(departmentId: number, name: string) {
+  return request<Doctor>(`/api/v1/departments/${departmentId}/doctors`, {
+    method: "POST",
+    body: JSON.stringify({ name }),
+  });
 }

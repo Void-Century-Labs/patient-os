@@ -35,6 +35,10 @@ export default async function HospitalLandingPage({
           </Button>
         </CardContent>
       </Card>
+
+      <Link href={`/h/${hospitalId}/admin`} className="text-muted-foreground text-xs underline">
+        Hospital staff admin
+      </Link>
     </main>
   );
 }

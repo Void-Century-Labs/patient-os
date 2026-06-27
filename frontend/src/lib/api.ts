@@ -167,3 +167,15 @@ export function createDoctor(departmentId: number, name: string) {
     body: JSON.stringify({ name }),
   });
 }
+
+export type Notification = {
+  id: number;
+  patient_id: number;
+  type: string;
+  message: string;
+  created_at: string;
+};
+
+export function getNotifications(patientId: number) {
+  return request<Notification[]>(`/api/v1/patients/${patientId}/notifications`);
+}

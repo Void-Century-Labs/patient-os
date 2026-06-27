@@ -74,3 +74,15 @@ func (h *PatientHandler) GetByMobile(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, patient)
 }
+
+// GetNotifications lists a patient's notifications, most recent first, so
+// the patient-facing app can surface queue status updates.
+func (h *PatientHandler) GetNotifications(c *gin.Context) {
+	var notifications []models.Notification
+	if err := h.DB.Where("patient_id = ?", c.Param("id")).
+		Order("created_at DESC").Find(&notifications).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch notifications"})
+		return
+	}
+	c.JSON(http.StatusOK, notifications)
+}

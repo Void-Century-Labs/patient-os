@@ -154,6 +154,7 @@ func (h *QueueHandler) CallNext(c *gin.Context) {
 		return
 	}
 
+	h.notify(entry.PatientID, "queue_called", "You're up next — please head to the doctor's room.")
 	h.broadcastQueue(entry.QueueID)
 	c.JSON(http.StatusOK, entry)
 }
@@ -178,6 +179,7 @@ func (h *QueueHandler) Complete(c *gin.Context) {
 		return
 	}
 
+	h.notify(entry.PatientID, "queue_completed", "Your visit is complete. Thank you!")
 	h.broadcastQueue(entry.QueueID)
 	c.JSON(http.StatusOK, entry)
 }
@@ -201,6 +203,7 @@ func (h *QueueHandler) Skip(c *gin.Context) {
 		return
 	}
 
+	h.notify(entry.PatientID, "queue_skipped", "You were skipped. Please check in with the front desk.")
 	h.broadcastQueue(entry.QueueID)
 	c.JSON(http.StatusOK, entry)
 }
@@ -313,6 +316,12 @@ type queueUpdateMessage struct {
 	Type    string           `json:"type"`
 	QueueID uint             `json:"queue_id"`
 	Entries []queueEntryView `json:"entries"`
+}
+
+// notify records a notification for a patient. Failures are logged but never
+// block the queue state transition that triggered them.
+func (h *QueueHandler) notify(patientID uint, notifType, message string) {
+	h.DB.Create(&models.Notification{PatientID: patientID, Type: notifType, Message: message})
 }
 
 // broadcastQueue recalculates positions for all waiting entries in a queue

@@ -45,6 +45,7 @@ func New(db *gorm.DB) *gin.Engine {
 
 		api.POST("/patients/register", patients.Register)
 		api.GET("/patients/:id", patients.Get)
+		api.GET("/patients/:id/notifications", patients.GetNotifications)
 		api.GET("/patients", patients.GetByMobile)
 
 		api.GET("/queue-entries/:id", queue.Status)

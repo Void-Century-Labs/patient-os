@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { getQueueEntry, getQueueWsUrl, leaveQueue, type QueueUpdateMessage } from "@/lib/api";
+import { getNotifications, getQueueEntry, getQueueWsUrl, leaveQueue, type QueueUpdateMessage } from "@/lib/api";
 
 const STATUS_LABEL: Record<string, string> = {
   waiting: "Waiting",
@@ -33,6 +33,14 @@ export default function QueueTrackingPage() {
   });
 
   const queueId = entry?.queue_id;
+  const patientId = entry?.patient_id;
+
+  const { data: notifications } = useQuery({
+    queryKey: ["notifications", patientId],
+    queryFn: () => getNotifications(patientId!),
+    enabled: !!patientId,
+    refetchInterval: !wsConnected ? 5000 : false,
+  });
 
   useEffect(() => {
     if (!queueId) return;
@@ -51,6 +59,7 @@ export default function QueueTrackingPage() {
       } else {
         queryClient.invalidateQueries({ queryKey: ["queue-entry", entryId] });
       }
+      queryClient.invalidateQueries({ queryKey: ["notifications", patientId] });
     };
 
     return () => {
@@ -130,6 +139,21 @@ export default function QueueTrackingPage() {
                 Choose another doctor
               </Button>
             )}
+          </CardContent>
+        </Card>
+      )}
+
+      {notifications && notifications.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Updates</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {notifications.map((notification) => (
+              <p key={notification.id} className="text-sm text-muted-foreground">
+                {notification.message}
+              </p>
+            ))}
           </CardContent>
         </Card>
       )}

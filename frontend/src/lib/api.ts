@@ -1,5 +1,6 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? "ws://localhost:8080";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
 export type Hospital = {
   id: number;
@@ -77,6 +78,17 @@ export function getHospital(hospitalId: string) {
 
 export function getHospitals() {
   return request<Hospital[]>("/api/v1/hospitals");
+}
+
+export function createHospital(name: string) {
+  return request<Hospital>("/api/v1/hospitals", {
+    method: "POST",
+    body: JSON.stringify({ name }),
+  });
+}
+
+export function getHospitalUrl(hospitalId: number | string) {
+  return `${APP_URL}/h/${hospitalId}`;
 }
 
 export function getDiscovery(hospitalId: string) {

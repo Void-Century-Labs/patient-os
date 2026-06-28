@@ -38,6 +38,10 @@ export default async function Home() {
           ))}
         </div>
       )}
+
+      <Link href="/admin" className="text-muted-foreground text-xs underline">
+        Hospital network admin
+      </Link>
     </main>
   );
 }

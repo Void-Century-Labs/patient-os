@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 
+import { HospitalQrCode } from "@/components/hospital-qr-code";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,6 +15,7 @@ import {
   createDoctor,
   getDepartments,
   getDoctors,
+  getHospitalUrl,
   type Department,
 } from "@/lib/api";
 
@@ -111,6 +113,16 @@ export default function AdminDashboardPage() {
 
       {isLoading && <p className="text-muted-foreground text-sm">Loading departments…</p>}
       {isError && <p className="text-sm text-destructive">{error.message}</p>}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Patient Check-in QR Code</CardTitle>
+          <CardDescription>{getHospitalUrl(params.hospitalId)}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <HospitalQrCode value={getHospitalUrl(params.hospitalId)} />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

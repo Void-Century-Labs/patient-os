@@ -3,11 +3,14 @@ package router
 import (
 	"github.com/gin-gonic/gin"
 	"github.com/void-century-labs/patient-os/backend/internal/handlers"
+	"github.com/void-century-labs/patient-os/backend/internal/ws"
 	"gorm.io/gorm"
 )
 
 func New(db *gorm.DB) *gin.Engine {
 	r := gin.Default()
+
+	hub := ws.NewHub()
 
 	health := &handlers.HealthHandler{DB: db}
 	r.GET("/health", health.Check)
@@ -17,7 +20,8 @@ func New(db *gorm.DB) *gin.Engine {
 	doctors := &handlers.DoctorHandler{DB: db}
 	patients := &handlers.PatientHandler{DB: db}
 	discovery := &handlers.DiscoveryHandler{DB: db}
-	queue := &handlers.QueueHandler{DB: db}
+	queue := &handlers.QueueHandler{DB: db, Hub: hub}
+	socket := &handlers.WebSocketHandler{Hub: hub}
 
 	api := r.Group("/api/v1")
 	{
@@ -36,13 +40,20 @@ func New(db *gorm.DB) *gin.Engine {
 		api.GET("/doctors/:id", doctors.Get)
 		api.PATCH("/doctors/:id/assign", doctors.Assign)
 		api.POST("/doctors/:id/queue/join", queue.Join)
+		api.GET("/doctors/:id/queue", queue.ActiveQueue)
+		api.POST("/doctors/:id/queue/call-next", queue.CallNext)
 
 		api.POST("/patients/register", patients.Register)
 		api.GET("/patients/:id", patients.Get)
+		api.GET("/patients/:id/notifications", patients.GetNotifications)
 		api.GET("/patients", patients.GetByMobile)
 
 		api.GET("/queue-entries/:id", queue.Status)
 		api.POST("/queue-entries/:id/leave", queue.Leave)
+		api.POST("/queue-entries/:id/complete", queue.Complete)
+		api.POST("/queue-entries/:id/skip", queue.Skip)
+
+		api.GET("/queues/:id/ws", socket.SubscribeQueue)
 	}
 
 	return r

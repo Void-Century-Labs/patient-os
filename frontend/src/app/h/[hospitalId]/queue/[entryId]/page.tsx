@@ -2,11 +2,12 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { getQueueEntry, leaveQueue } from "@/lib/api";
+import { getNotifications, getQueueEntry, getQueueWsUrl, leaveQueue, type QueueUpdateMessage } from "@/lib/api";
 
 const STATUS_LABEL: Record<string, string> = {
   waiting: "Waiting",
@@ -21,13 +22,51 @@ export default function QueueTrackingPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const entryId = Number(params.entryId);
+  const [wsConnected, setWsConnected] = useState(false);
+  const wsRef = useRef<WebSocket | null>(null);
 
   const { data: entry, isLoading, isError, error } = useQuery({
     queryKey: ["queue-entry", entryId],
     queryFn: () => getQueueEntry(entryId),
     refetchInterval: (query) =>
-      query.state.data?.status === "waiting" ? 5000 : false,
+      !wsConnected && query.state.data?.status === "waiting" ? 5000 : false,
   });
+
+  const queueId = entry?.queue_id;
+  const patientId = entry?.patient_id;
+
+  const { data: notifications } = useQuery({
+    queryKey: ["notifications", patientId],
+    queryFn: () => getNotifications(patientId!),
+    enabled: !!patientId,
+    refetchInterval: !wsConnected ? 5000 : false,
+  });
+
+  useEffect(() => {
+    if (!queueId) return;
+
+    const socket = new WebSocket(getQueueWsUrl(queueId));
+    wsRef.current = socket;
+
+    socket.onopen = () => setWsConnected(true);
+    socket.onclose = () => setWsConnected(false);
+    socket.onerror = () => setWsConnected(false);
+    socket.onmessage = (event) => {
+      const message: QueueUpdateMessage = JSON.parse(event.data);
+      const updated = message.entries.find((item) => item.id === entryId);
+      if (updated) {
+        queryClient.setQueryData(["queue-entry", entryId], updated);
+      } else {
+        queryClient.invalidateQueries({ queryKey: ["queue-entry", entryId] });
+      }
+      queryClient.invalidateQueries({ queryKey: ["notifications", patientId] });
+    };
+
+    return () => {
+      socket.close();
+      wsRef.current = null;
+    };
+  }, [queueId, entryId, queryClient]);
 
   const leaveMutation = useMutation({
     mutationFn: () => leaveQueue(entryId),
@@ -100,6 +139,21 @@ export default function QueueTrackingPage() {
                 Choose another doctor
               </Button>
             )}
+          </CardContent>
+        </Card>
+      )}
+
+      {notifications && notifications.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Updates</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {notifications.map((notification) => (
+              <p key={notification.id} className="text-sm text-muted-foreground">
+                {notification.message}
+              </p>
+            ))}
           </CardContent>
         </Card>
       )}

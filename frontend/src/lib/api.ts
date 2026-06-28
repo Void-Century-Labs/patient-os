@@ -1,4 +1,5 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? "ws://localhost:8080";
 
 export type Hospital = {
   id: number;
@@ -17,6 +18,16 @@ export type Doctor = {
   id: number;
   department_id: number;
   name: string;
+};
+
+export type Department = {
+  id: number;
+  hospital_id: number;
+  name: string;
+};
+
+export type ActiveQueueEntry = QueueEntry & {
+  patient_name: string;
 };
 
 export type DoctorAvailability = Doctor & {
@@ -99,4 +110,72 @@ export function leaveQueue(entryId: number) {
   return request<QueueEntry>(`/api/v1/queue-entries/${entryId}/leave`, {
     method: "POST",
   });
+}
+
+export type QueueUpdateMessage = {
+  type: "queue_update";
+  queue_id: number;
+  entries: QueueEntry[];
+};
+
+export function getQueueWsUrl(queueId: number) {
+  return `${WS_URL}/api/v1/queues/${queueId}/ws`;
+}
+
+export function getActiveQueue(doctorId: number) {
+  return request<{ queue_id: number | null; entries: ActiveQueueEntry[] }>(
+    `/api/v1/doctors/${doctorId}/queue`,
+  );
+}
+
+export function callNext(doctorId: number) {
+  return request<QueueEntry>(`/api/v1/doctors/${doctorId}/queue/call-next`, {
+    method: "POST",
+  });
+}
+
+export function completeEntry(entryId: number) {
+  return request<QueueEntry>(`/api/v1/queue-entries/${entryId}/complete`, {
+    method: "POST",
+  });
+}
+
+export function skipEntry(entryId: number) {
+  return request<QueueEntry>(`/api/v1/queue-entries/${entryId}/skip`, {
+    method: "POST",
+  });
+}
+
+export function getDepartments(hospitalId: string) {
+  return request<Department[]>(`/api/v1/hospitals/${hospitalId}/departments`);
+}
+
+export function createDepartment(hospitalId: string, name: string) {
+  return request<Department>(`/api/v1/hospitals/${hospitalId}/departments`, {
+    method: "POST",
+    body: JSON.stringify({ name }),
+  });
+}
+
+export function getDoctors(departmentId: number) {
+  return request<Doctor[]>(`/api/v1/departments/${departmentId}/doctors`);
+}
+
+export function createDoctor(departmentId: number, name: string) {
+  return request<Doctor>(`/api/v1/departments/${departmentId}/doctors`, {
+    method: "POST",
+    body: JSON.stringify({ name }),
+  });
+}
+
+export type Notification = {
+  id: number;
+  patient_id: number;
+  type: string;
+  message: string;
+  created_at: string;
+};
+
+export function getNotifications(patientId: number) {
+  return request<Notification[]>(`/api/v1/patients/${patientId}/notifications`);
 }
